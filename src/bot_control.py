@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -- coding: utf-8 --
 import rospy
-import numpy as np
+import time
+# import numpy as np
 from tf.transformations import euler_from_quaternion
 
 from std_msgs.msg import Bool, Empty
 from tf.msg import tfMessage
-from geometry_msgs.msg import *
+from geometry_msgs.msg import Twist, Vector3
 from sensor_msgs.msg import LaserScan
 
 class bot:
@@ -37,22 +38,13 @@ class bot:
 
         self.heading = yaw # heading을 rad으로 표현 / x축 기준 반시계방향 -pi ~ pi
     ##################################
+    def f_set(self):
+        self.reset_pub.publish()
+        time.sleep(2)
+        self.motor_power_pub.publish(data = True)
+        time.sleep(1)
+        print("turtle is ready!!\n--------------------------------------------------------\n"),
 
     def move(self, v, steer):
         mt = Twist(linear=Vector3(v, 0, 0), angular=Vector3(0, 0, steer))
         self.motor_pub.publish(mt)
-
-# # 센서 리셋 & 모터 파워 ON ex
-#     Turtle.reset_pub.publish()
-#     time.sleep(2)
-#     Turtle.motor_power_pub.publish(data = True)
-#     time.sleep(1)
-#     print("map_size : "),
-#     print(map_size),
-#     print(", scale : "),
-#     print(scale),
-#     print(", offset : "),
-#     print(Turtle.offset),
-#     print(", current pos : "),
-#     print(Turtle.pos)
-#     print("turtle is ready!!\n--------------------------------------------------------\n")
