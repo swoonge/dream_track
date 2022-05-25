@@ -51,14 +51,3 @@
 #     open_manipulator_msgs/SetJointPosition
 #     The user can use this service to create a trajectory in the joint space.
 #     The user inputs the angle of the target joint and the total time of the trajectory.
-
-
-import rospy
-from open_manipulator_msgs.msg import *
-
-def main():
-    print("clean test")
-
-if __name__ == '__main__':
-    rospy.init_node('control',anonymous=True)
-    main()
