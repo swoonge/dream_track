@@ -7,7 +7,7 @@ from tf.transformations import euler_from_quaternion
 
 from std_msgs.msg import Bool, Empty
 from tf.msg import tfMessage
-from geometry_msgs.msg import Twist, Vector3
+from geometry_msgs.msg import Twist, Vector3, Quaternion
 from sensor_msgs.msg import LaserScan
 
 class bot:
@@ -24,6 +24,7 @@ class bot:
         self.sub_scan = [0.0, 0.0]
         self.heading = 0.0
         self.pos = self.offset = offset
+        self.orientation_q = Quaternion(0,0,0,1)
 
     ########## callback 함수 #########
     def scan_callback(self, scan):
@@ -32,8 +33,9 @@ class bot:
     def tf_callback(self, pos):
         self.pos = [pos.transforms[0].transform.translation.x + self.offset[0], pos.transforms[0].transform.translation.y + self.offset[1]]
 
-        orientation_q = pos.transforms[0].transform.rotation
-        orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+        orientation = pos.transforms[0].transform.rotation
+        self.orientation_q = Quaternion(orientation.x, orientation.y, orientation.z, orientation.w)
+        orientation_list = [self.orientation_q.x, self.orientation_q.y, self.orientation_q.z, self.orientation_q.w]
         (roll, pitch, yaw) = euler_from_quaternion (orientation_list)
 
         self.heading = yaw # heading을 rad으로 표현 / x축 기준 반시계방향 -pi ~ pi

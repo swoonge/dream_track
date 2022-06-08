@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import rospy
 from math import cos, sin, pi
 import numpy as np
@@ -20,17 +20,18 @@ class Visualization():
         self.pose_pub = rospy.Publisher('/pose_rviz',Marker, queue_size=1)
         # self.path_pub = rospy.Publisher('/path_rviz',Marker, queue_size=1)
 
-    def presentPOSE(self,x,y,heading):
+    def presentPOSE(self,pos,heading):
         pose = Pose()
 
-        q=euler_to_quaternion(0,0,heading)
-        pose.orientation.x=q[0]
-        pose.orientation.y=q[1]
-        pose.orientation.z=q[2]
-        pose.orientation.w=q[3]
+        # q=euler_to_quaternion(0,0,heading)
+        # pose.orientation.x=q[0]
+        # pose.orientation.y=q[1]
+        # pose.orientation.z=q[2]
+        # pose.orientation.w=q[3]
+        pose.orientation = heading
 
-        pose.position.x=x
-        pose.position.y=y
+        pose.position.x=pos[0]
+        pose.position.y=pos[1]
         pose.position.z=0
 
         rviz_msg_pose=Marker(
@@ -41,7 +42,7 @@ class Visualization():
             lifetime=rospy.Duration(),
             action=Marker.ADD,
             pose=pose,
-            scale=Vector3(x=2.0,y=0.5,z=0.5),
+            scale=Vector3(x=0.3,y=0.1,z=0.1),
             color=ColorRGBA(r=0.0,g=1.0,b=0.0,a=1.0),
             )
 

@@ -1,16 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -- coding: utf-8 --
-import re
 import rospy
 import time
 
 from bot_control import *
 from bot_map import *
-from slam import *
-
-map_size = 20 # (m)
-scale = 0.05 # (0.05m 간격으로 격자화)
-offset = [map_size/2.0, map_size/2.0] 
 
 class mode():
     def __init__(self):
@@ -41,11 +35,16 @@ class mode():
             self.state = 0
         
 def main():
-    global map_size, scale, offset
     rate = rospy.Rate(1)
-    Turtle = bot(offset) # 터틀봇 모듈 : 터틀봇의 센서데이터와 제어 담당
-    Slam = slam() # Slam 모듈 : (xy(m), scale(m))
-    mode = mode()
+    mission = mode()
+    Turtle = bot() # 터틀봇 모듈 : 터틀봇의 센서데이터와 제어 담당
+    map = Map()
+    
+    while not rospy.is_shutdown():
+        map.map_update()
+        mission.mode_update(can_dis):
+        speed, steer = mission.run()
+        rate.sleep()
 
 if __name__ == '__main__':
     rospy.init_node('state',anonymous=True)
