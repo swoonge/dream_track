@@ -5,45 +5,54 @@ import time
 
 from bot_control import *
 from bot_map import *
+# from control_client import *
 
 class mode():
     def __init__(self):
         self.state = 0 # 0 is def_mod, 1 is get_mod
 
-    def mode_0(self): # scan mode
-        speed = 0
+    def scan_mode(self): # scan mode # speed max == 0.1
+        speed = 0.1
         steer = 0
-        theta = [0, 0, 0, 0] # or int
-        return speed, steer, theta
+        return speed, steer
 
-    def mode_1(self): # get mode
-        speed = 0
-        steer = 0
-        theta = [0, 0, 0, 0] # or int
-        return speed, steer, theta
+    def get_mode(self): # get mode
+        if self.state == 1:
+            speed = 0.05
+            steer = 0.0
+        elif self.state == 2:
+            speed = 0.0
+            steer = 0.0
+        return speed, steer
 
     def run(self):
         if self.state == 0:
-            return self.mode_0()
-        if self.state == 1:
-            return self.mode_1()
+            return self.scan_mode()
+        if self.state != 0:
+            return self.get_mode()
 
-    def mode_update(self, can):
-        if can != 0:
-            self.state = 1
-        if can == 0:
-            self.state = 0
+    def mode_update(self, state): # (0 : can not dect -> scan mode, 1 : can dect, but far, 2 : can get mode)  
+        self.state = state
         
 def main():
-    rate = rospy.Rate(1)
+    rate = rospy.Rate(5)
     mission = mode()
-    Turtle = bot() # 터틀봇 모듈 : 터틀봇의 센서데이터와 제어 담당
-    map = Map()
-    
+    Turtle = bot([0.0, 0.0]) # 터틀봇 모듈 : 터틀봇의 센서데이터와 제어 담당
+    # map = Map()
+    Turtle.f_set()
+    print_count = 0
+
     while not rospy.is_shutdown():
-        map.map_update()
-        mission.mode_update(can_dis):
+        # map.map_update()
+        mission.mode_update(Turtle.can_state[2])
         speed, steer = mission.run()
+        
+        print_count += 1
+        if print_count > 5:
+            print(mission.state)
+            print_count = 0
+
+        Turtle.move(speed, steer)
         rate.sleep()
 
 if __name__ == '__main__':
