@@ -7,7 +7,7 @@ import rospy
 from open_manipulator_msgs.srv import SetJointPosition
 from detection_msgs.msg import BoundingBox,BoundingBoxes
 from sensor_msgs.msg import Image
-from std_msgs.msg import Int16MultiArray
+from std_msgs.msg import Float64MultiArray
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
 import time
@@ -37,21 +37,15 @@ def invK(x,y,z):
     T = [
         [1,0,0,x + 0.188],
         [0,1,0,y + 0.035],
-        [0,0,1,z - 0.025],
+        [0,0,1,z - 0.005 ], #- 0.025
         [0,0,0,1]
         ]
     T = np.array(T)
     T = SE3(T)
-    initT = [
-        [1,0,0,0.1964],
-        [0,1,0,0],
-        [0,0,1,-0.02633],
-        [0,0,0,1]
-        ]
     # fkine = robot.fkine([0,0.76,1.15,-.15])
     # print(fkine)
     q0 = [0,0,0,0]
-    sol = robot.ikine_LM(T,q0,ilimit=100)
+    sol = robot.ikine_LM(T,q0,ilimit=50)
     return sol[0]
 
 class Joint_position():
@@ -76,7 +70,7 @@ def movePoint(x,y,z,t):
     print(theta)
     theta = list(theta)
     theta[0] = theta[0]*1.17 ### calibration
-    thetaRot = [theta[0],.76,1.15,-1.5]
+    thetaRot = [theta[0],.665,.71,-1]
     joint_position = Joint_position(j_name,thetaRot,0,0)
     respl = stateReq('',joint_position,t)
     time.sleep(1)
@@ -102,7 +96,7 @@ def standbyPose(t):
     rospy.wait_for_service('/goal_joint_space_path')
     stateReq = rospy.ServiceProxy('/goal_joint_space_path',SetJointPosition)
     j_name = ['joint1','joint2','joint3','joint4']
-    theta = [0,.76,1.15,-1.5]
+    theta = [0,.665,.71,-1] # stanby pose
 
     joint_position = Joint_position(j_name,theta,0,0)
     respl = stateReq('',joint_position,t)
@@ -172,11 +166,27 @@ def goPath(x,y,z):
     initPose('home')
     # gripOpen()
 
+catchLabel = ["gatorade",
+              "letsbe",
+              "milkis",
+              "powerade",
+              "vita500"]
+
+noncatchLabel =["pepsi_zero"]
+
+def isCatch(label):
+    for i in range(len(catchLabel)):
+        if label==catchLabel[i]:
+            return 1
+    return 0
+
 def bbox(data):
+    global can_st_pub
     c_Z = 239
     c_Y = 319
 
     for box in data.bounding_boxes:
+        can_st = [0.0,0.0,0.0]
         center_y = (box.ymin+box.ymax)//2
         center_x = (box.xmin+box.xmax)//2
         depth_array = np.array(depth_image, dtype=np.float32)/1000 # mm to m
@@ -194,10 +204,29 @@ def bbox(data):
                 box.Class, depth_array[center_y, center_x], X_coord, Y_coord, Z_coord
             )
         )
-        isCatch = np.sqrt(np.square(X_coord)+np.square(Y_coord)+np.square(Z_coord))
-        if isCatch < 0.242 and isCatch > 0.15:
-            goPath(X_coord,Y_coord,Z_coord)
-            print("go through the path")
+        if isCatch(box.Class): 
+            objDist = np.sqrt(np.square(X_coord)+np.square(Y_coord)+np.square(Z_coord))
+            can_st[0:2] = X_coord*1.1, Y_coord*1.1
+            if objDist < 0.242+0.018 and objDist > 0.15: # state 2
+                can_st[2] = 2
+                can_st_pub.publish(data = can_st)
+                goPath(X_coord,Y_coord,Z_coord)
+                can_st = [0.0,0.0,0.0]
+                can_st_pub.publish(data = can_st)
+                print("go through the path")
+            else: # state 1
+                can_st[2] = 1
+                can_st_pub.publish(data = can_st)
+        # if isCatch(box.Class)==0: # state 0
+        #     print("non-catch label")
+        #     can_st[2] = 0
+        #     can_st_pub.publish(data = can_st)
+    if len(data.bounding_boxes)==0:
+        can_st = [0.0,0.0,0.0]
+        can_st_pub.publish(data = can_st)
+        
+
+# /can_position_state // x,y 
 
 def convert_depth_image(image):
     bridge = CvBridge()
@@ -209,6 +238,8 @@ def convert_depth_image(image):
 
 def ctrl():
     rospy.init_node('ctr_node', anonymous=True)
+    global can_st_pub
+    can_st_pub = rospy.Publisher('/can_position_state',Float64MultiArray,queue_size=1)
     rospy.Subscriber('/yolov5/detections',BoundingBoxes,bbox,queue_size=1)
     rospy.Subscriber('/camera/aligned_depth_to_color/image_raw',Image,convert_depth_image,queue_size=1)
     rospy.spin()
