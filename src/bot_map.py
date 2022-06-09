@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -- coding: utf-8 --
 
+from selectors import EpollSelector
 import rospy
 import numpy as np
 import time
@@ -15,6 +16,7 @@ class Map():
         # self.map_update()
         self.deg_sub = rospy.Subscriber('/can_position_state', Float64MultiArray, self.can_callback, queue_size = 1) # (x, y, state)좌표
         self.laser_sub = rospy.Subscriber('/scan', LaserScan, self.scan_callback, queue_size = 1)
+        
         self.can_pos_state = [0.0, 0.0, 0.0] # x,y,count
         self.can_pos = [0.0, 0.0]
         self.obj = list()
@@ -25,16 +27,16 @@ class Map():
 
     def can_callback(self, can):
         self.can_pos_state = can.data # moving averge can pos
-        if self.can_pos_state[2] > 0:
-            self.can_pos = self.can_pos_state[0:2]
+        self.matching_can()
+        # if self.can_pos_state[2] > 0:
+        #     self.can_pos = self.can_pos_state[0:2]
 
     def scan_callback(self, scan):
         self.scan1 = self.scan0.copy()
         self.scan2 = self.scan1.copy()
         self.scan0 = scan.ranges
         self.get_obj()
-        if self.can_pos != 0:
-            self.trace_can()
+        self.tracing_can()
 
     def tf_tm(self, dis, i):
         obs_y = dis*math.sin(np.deg2rad(float(i)))
@@ -52,20 +54,30 @@ class Map():
         obs = self.tf_scan_to_xy(self.scan0 + self.scan1 + self.scan2)
         self.DB_can_cluster.run(np.array(obs))
 
-    def trace_can(self):
+    def tracing_can(self):
         dist = list()
-        for x in self.DB_can_cluster.cluster_avg:
-            dist.append(np.sqrt(np.sum(((self.can_pos - x)**2),2)))
-        if self.can_pos_state[2] > 0:
-            self.can_pos = self.DB_can_cluster.cluster_avg[dist.index(min(dist))]
-            # nearist self.DB_can_cluster point matching
+        for c_avg in self.DB_can_cluster.cluster_avg:
+            dist.append(np.linalg.norm([c_avg[0] - self.can_pos[0],c_avg[1] - self.can_pos[1]]))
+        tracking_min_pos = self.DB_can_cluster.cluster_avg[dist.index(min(dist))]
+        if tracking_min_pos < 0.05:
+            self.can_pos = tracking_min_pos
+            print("Tracking---")
         else:
-            if min(dist) < 0.05:
-                self.can_pos = self.DB_can_cluster.cluster_avg[dist.index(min(dist))]
-            # past matching point near in 5cm near point tracking
-            else: # can lost
-                self.can_pos = [0.0, 0.0]
-        
+            print("Can lost")
+            self.can_pos = [0.0, 0.0]
+
+    def matching_can(self):
+        dist = list()
+        for c_avg in self.DB_can_cluster.cluster_avg:
+            dist.append(np.linalg.norm([c_avg[0] - self.can_pos_state[0],c_avg[1] - self.can_pos_state[1]]))
+        matching_min_pos = self.DB_can_cluster.cluster_avg[dist.index(min(dist))]
+        if matching_min_pos < 0.1:
+            self.can_pos = matching_min_pos
+            print("Maching clear!")
+        else:
+            self.can_pos = self.can_pos_state[0:1].copy
+            print("Maching fail...")
+
     def map_update(self):
         rospy.wait_for_service('/dynamic_map')
         try:

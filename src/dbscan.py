@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -- coding: utf-8 --
+from types import coroutine
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -129,9 +130,10 @@ class DBSCAN():
         self.cluster_avg = avg
 
     def run(self, x):
-        self.data_update(x) # np 2channal array input
-        # DBSCAN Parameters
-
+        try:
+            self.data_update(x) # np 2channal array input
+        except:
+            pass
         self.clustering()
         self.sort()
         self.get_cluster_avg()

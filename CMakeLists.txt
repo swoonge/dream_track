@@ -62,6 +62,7 @@ add_message_files(
 add_service_files(
   FILES
   srv_test.srv
+  can_move.srv
 )
 ## Generate actions in the 'action' folder
 # add_action_files(
