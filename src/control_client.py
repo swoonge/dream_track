@@ -6,6 +6,7 @@ import sys
 import rospy
 from open_manipulator_msgs.srv import SetJointPosition
 from detection_msgs.msg import BoundingBox,BoundingBoxes
+from dream_track.srv import can_moveResponse, can_move
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray
 import cv2
@@ -180,8 +181,14 @@ def isCatch(label):
             return 1
     return 0
 
+def mission_callback(data):
+    global Z_coord
+    goPath(data.x,data.y,Z_coord)
+    return can_moveResponse(suc = True)
+
 def bbox(data):
     global can_st_pub
+    global Z_coord
     c_Z = 239
     c_Y = 319
 
@@ -210,7 +217,7 @@ def bbox(data):
             if objDist < 0.242+0.018 and objDist > 0.15: # state 2
                 can_st[2] = 2
                 can_st_pub.publish(data = can_st)
-                goPath(X_coord,Y_coord,Z_coord)
+                # goPath(X_coord,Y_coord,Z_coord)
                 can_st = [0.0,0.0,0.0]
                 can_st_pub.publish(data = can_st)
                 print("go through the path")
@@ -242,6 +249,7 @@ def ctrl():
     can_st_pub = rospy.Publisher('/can_position_state',Float64MultiArray,queue_size=1)
     rospy.Subscriber('/yolov5/detections',BoundingBoxes,bbox,queue_size=1)
     rospy.Subscriber('/camera/aligned_depth_to_color/image_raw',Image,convert_depth_image,queue_size=1)
+    can_mission_cli = rospy.Service('/can_mission_point', can_move, callback)
     rospy.spin()
 
 ### Warning : radian, m ###
