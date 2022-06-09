@@ -36,8 +36,8 @@ robot = DHRobot(
 
 def invK(x,y,z):
     T = [
-        [1,0,0,x + 0.188],
-        [0,1,0,y + 0.035],
+        [1,0,0,x],# + 0.188],
+        [0,1,0,y], #+ 0.035],
         [0,0,1,z - 0.005 ], #- 0.025
         [0,0,0,1]
         ]
@@ -249,7 +249,7 @@ def ctrl():
     can_st_pub = rospy.Publisher('/can_position_state',Float64MultiArray,queue_size=1)
     rospy.Subscriber('/yolov5/detections',BoundingBoxes,bbox,queue_size=1)
     rospy.Subscriber('/camera/aligned_depth_to_color/image_raw',Image,convert_depth_image,queue_size=1)
-    can_mission_cli = rospy.Service('/can_mission_point', can_move, callback)
+    can_mission_cli = rospy.Service('/can_mission_point', can_move, mission_callback)
     rospy.spin()
 
 ### Warning : radian, m ###
