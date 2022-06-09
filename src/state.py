@@ -5,52 +5,46 @@ import time
 
 from bot_control import *
 from bot_map import *
-# from control_client import *
 
 class mode():
     def __init__(self):
         self.state = 0 # 0 is def_mod, 1 is get_mod
 
     def scan_mode(self): # scan mode # speed max == 0.1
-        speed = 0.1
         steer = 0
+        speed = 0.1
         return speed, steer
 
-    def get_mode(self): # get mode
+    def get_mode(self, can_pos): # get mode
         if self.state == 1:
+            steer = 0.5*can_pos[1] if can_pos[1] > 0.2 else -0.5*can_pos[1] if can_pos[1] < -0.2 else 0.0
             speed = 0.05
-            steer = 0.0
         elif self.state == 2:
-            speed = 0.0
             steer = 0.0
+            speed = 0.0
         return speed, steer
 
-    def run(self):
+    def run(self, can_pos):
         if self.state == 0:
             return self.scan_mode()
         if self.state != 0:
-            return self.get_mode()
+            return self.get_mode(can_pos)
 
-    def mode_update(self, state): # (0 : can not dect -> scan mode, 1 : can dect, but far, 2 : can get mode)  
-        self.state = state
+    def mode_update(self, can_pos): # (0 : can not dect -> scan mode, 1 : can dect, but far, 2 : can get mode)  
+        self.state = 0 if np.linalg.norm(can_pos) > 0 else 1 if np.linalg.norm(can_pos) > 0.25 else 2
         
 def main():
     rate = rospy.Rate(5)
     mission = mode()
     Turtle = bot([0.0, 0.0]) # 터틀봇 모듈 : 터틀봇의 센서데이터와 제어 담당
-    # map = Map()
+    map = Map()
+
     Turtle.f_set()
-    print_count = 0
 
     while not rospy.is_shutdown():
         # map.map_update()
-        mission.mode_update(Turtle.can_state[2])
-        speed, steer = mission.run()
-        
-        print_count += 1
-        if print_count > 5:
-            print(mission.state)
-            print_count = 0
+        mission.mode_update(map.can_pos)
+        speed, steer = mission.run(map.can_pos)
 
         Turtle.move(speed, steer)
         rate.sleep()

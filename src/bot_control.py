@@ -5,16 +5,16 @@ import time
 # import numpy as np
 from tf.transformations import euler_from_quaternion
 
-from std_msgs.msg import Bool, Empty, Float64MultiArray
+from std_msgs.msg import Bool, Empty
 from tf.msg import tfMessage
 from geometry_msgs.msg import Twist, Vector3
-# from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import LaserScan
 
 class bot:
     def __init__(self, offset):
         # 구독자 선언
         self.deg_sub = rospy.Subscriber('/tf', tfMessage, self.tf_callback, queue_size = 1) # (x, y)좌표
-        self.deg_sub = rospy.Subscriber('/can_position_state', Float64MultiArray, self.can_callback, queue_size = 1) # (x, y, state)좌표
+        # self.laser_sub = rospy.Subscriber('/scan', LaserScan, self.scan_callback, queue_size = 1)
 
         self.motor_power_pub = rospy.Publisher('/motor_power', Bool, queue_size = 1)
         self.motor_pub = rospy.Publisher('/cmd_vel', Twist, queue_size = 1) # 모터
@@ -22,12 +22,16 @@ class bot:
 
         # Sub 받은 데이터
         self.heading = 0.0
+        # self.scan_raw = []
         self.pos = self.offset = offset
         self.can_state = [0.0, 0.0, 0.0]
 
     ########## callback 함수 #########
     def can_callback(self, can):
         self.can_state = can.data
+
+    # def scan_callback(self, scan):
+    #     self.scan_raw = scan.ranges
 
     def tf_callback(self, pos):
         self.pos = [pos.transforms[0].transform.translation.x + self.offset[0], pos.transforms[0].transform.translation.y + self.offset[1]]

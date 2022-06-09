@@ -38,17 +38,16 @@ class slam:
         return [obs_xy[0], obs_xy[1]]
 
     def tf_scan_to_xy(self, pos, heading, scan_data):
-        i = 0
         obs = []
 
         Trans_z = [[math.cos(heading), -math.sin(heading), pos[0]],
                   [math.sin(heading),  math.cos(heading), pos[1]],
                   [        0        ,         0         ,    1  ]]
 
-        for dis in scan_data:
+        for i, dis in enumerate(scan_data):
             if 0.2 < dis and dis < 3.0:
-                obs.append(self.tf_tm(dis, i, Trans_z)) # 변환된 좌표가 self.obs에 저장됨
-            i = i + 1 # 각도 올림
+                obs.append(self.tf_tm(dis, i, Trans_z))
+
         return obs
 
     def make_map(self, obs):
