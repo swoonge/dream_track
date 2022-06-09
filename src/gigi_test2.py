@@ -12,7 +12,7 @@ from bot_map import *
 #########
 def callback(data):
     print(data.x, data.y)
-    time.sleep(2) # arm move//////////////////////
+    time.sleep(5) # arm move//////////////////////
     return can_moveResponse(suc = True)
 ##########
 

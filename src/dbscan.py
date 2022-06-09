@@ -3,6 +3,7 @@
 from types import coroutine
 import numpy as np
 from matplotlib import pyplot as plt
+import copy
 
 class DBSCAN():
     def __init__(self, epsilon, minpts):
@@ -127,7 +128,7 @@ class DBSCAN():
         avg = list()
         for c in self.cluster:
             avg.append(np.mean(np.array(c[0]), axis = 0).tolist())
-        self.cluster_avg = avg
+        self.cluster_avg = avg[:]
 
     def run(self, x):
         try:
@@ -138,4 +139,4 @@ class DBSCAN():
         self.sort()
         self.get_cluster_avg()
 
-        return len(self.cluster)
+        # return len(self.cluster)
