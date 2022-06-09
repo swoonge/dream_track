@@ -3,7 +3,6 @@
 
 import rospy
 import numpy as np
-import time
 import math
 from std_msgs.msg import Float64MultiArray
 from nav_msgs.srv import GetMap
@@ -21,35 +20,39 @@ class Map():
         self.sub_scan = list()
         self.DB_can_cluster = DBSCAN(0.05, 3)
     
+    # 미션이 수행 되고 난 후, can 위치 관련 정보 초기화
     def matching_clear(self):
         self.mission_state = 0
         self.maching_can_pos = [0.0, 0.0]
         self.sub_scan = list()
 
-    def can_callback(self, can): #sub 받는 캔의 위치는 리얼센스 위치 기준. 나는 추적 기준이니까 로봇의 중심 좌표 기준으로 변환해주자
+    # can의 위치 정보가 들어 왔을 때 callback함수. 라이다 매칭 미련을 조금 못버려서 추적하는데만 조금 매칭 사용(조금 사용함)
+    def can_callback(self, can):
         sub_can_pos = [can.data[0]+0.188, can.data[1]-0.03] # offset = x좌표 기준 캠 위치 - 중심위치
-        if can.data[2] == 2 or self.mission_state == 2: self.mission_state = 2
-        if can.data[2] == 1: #2였다면 위에 if문에서 미리 바꼈으니 1인경우 
+        if can.data[2] == 2 or self.mission_state == 2: self.mission_state = 2 # state가 2(로봇팔 작동 시작)가 들어오면 무조건 상태 2로 변경 and 2로 유지
+        if can.data[2] == 1: #2였다면 위에 if문에서 미리 바꼈으니 1인경우 -> 그래도 한번 매칭 해봄 -> 매칭 되면 라이다 좌표로 움직임 / 매칭 실패시 그냥 리얼센스 값 사용 
             self.maching_can_pos = self.matching_point(sub_can_pos, 0.1)
             if self.maching_can_pos == [0.0,0.0]: 
                 self.maching_can_pos = sub_can_pos
-                self.mission_state = 1
-        elif can.data[2] == 0:
-            if self.mission_state == 1:
-                self.maching_can_pos = self.matching_point(self.maching_can_pos, 0.1)
-                if self.maching_can_pos == [0.0,0.0]:
-                    self.mission_state = 0
+            self.mission_state = 1 # -> 매칭 되던 안되던 state는 1
+        elif can.data[2] == 0: # 혹시나 지금 카메라에서는 인식 못했는데
+            if self.mission_state == 1: # 직전에는 can의 위치정보가 있었다면
+                self.maching_can_pos = self.matching_point(self.maching_can_pos, 0.1) #한번 직전의 점과 매칭은 해봄 매칭 되면 state를 그대로 캔 추정모드(1)로 두고 trace된 캔 좌표로 주행
+                if self.maching_can_pos == [0.0,0.0]: # 매칭 안됬어
+                    self.mission_state = 0 # 응 완전히 놓친거야~ state 자율주행모드(0) 으로 완전 변경
 
-            
+    # 라이다 거리정보 sub
     def scan_callback(self, scan):
         self.sub_scan = list(scan.ranges)[:]
         self.get_obj()
-        
+    
+    # 라이다 거리&각도 정보를 로봇 xy좌표계로 변환
     def tf_tm(self, dis, i):
         obs_y = dis*math.sin(np.deg2rad(float(i)))
         obs_x = dis*math.cos(np.deg2rad(float(i))) + 0.03 ## 이거도 라이다랑 로봇 중심좌표 거리로 바꾸자
         return [obs_x, obs_y]
 
+    # sub받은 라이다 거리정보를 정면 180도, 0.2~1.0m거리의 거리정보만 xy좌표로 변환
     def tf_scan_to_xy(self):
         obs = list()
         for i, dis in enumerate(self.sub_scan):
@@ -57,9 +60,11 @@ class Map():
         if len(obs) < 2: obs = [[0,0]]
         return obs
 
+    # 라이다로 얻은 주변 xy점들을 클러스터링. DBClustering으로 0.05m정도 간격으로 3점 이상 뭉쳐있으면 cluster하고, 평균점 정보도 저장
     def get_obj(self):
         self.DB_can_cluster.run(np.array(self.tf_scan_to_xy()))
             
+    # 어떤 point와 주변환경을 매칭할건지 매칭해주는 함수. R은 얼만큼 가까운 점이 있으면 제일 가까운 점으로 cluster할지 정하는 매칭 반경
     def matching_point(self, point, R):
         dist = list()
         for c_avg in self.DB_can_cluster.cluster_avg:
@@ -68,6 +73,7 @@ class Map():
         maching_pos = matching_min_pos if min(dist) < R else [0.0, 0.0]         
         return maching_pos
 
+    # slam 코드에 서비스를 요청하여 지도 정보를 받아오는 서비스 함수
     def map_update(self):
         rospy.wait_for_service('/dynamic_map')
         try:
