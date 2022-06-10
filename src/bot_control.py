@@ -9,6 +9,7 @@ from std_msgs.msg import Bool, Empty
 from tf.msg import tfMessage
 from geometry_msgs.msg import Twist, Vector3
 from sensor_msgs.msg import LaserScan
+from open_manipulator_msgs.srv import SetActuatorState
 
 class bot:
     def __init__(self, offset):
@@ -27,6 +28,14 @@ class bot:
         self.can_state = [0.0, 0.0, 0.0]
 
     ########## callback 함수 #########
+    def actuator_power(self, st):
+        rospy.wait_for_service('/set_actuator_state')
+        try:
+            can_mission_srvs = rospy.ServiceProxy('/set_actuator_state', SetActuatorState)
+            bak = can_mission_srvs(set_actuator_state=st)
+        except:
+            pass
+
     def can_callback(self, can):
         self.can_state = can.data
 
