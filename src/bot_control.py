@@ -26,6 +26,8 @@ class bot:
         # self.scan_raw = []
         self.pos = self.offset = offset
         self.can_state = [0.0, 0.0, 0.0]
+        
+        self.move(0.0, 0.0)
 
     ########## callback 함수 #########
     def actuator_power(self, st):
