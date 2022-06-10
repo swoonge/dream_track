@@ -1,0 +1,9 @@
+<launch>
+  <!-- Slam -->
+  <include file="$(find turtlebot3_slam)/launch/turtlebot3_slam.launch">
+  </include>
+
+  <!-- Navi -->
+  <include file="$(find turtlebot3_navigation)/launch/turtlebot3_navigation.launch">
+  </include>
+</launch>
