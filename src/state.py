@@ -11,12 +11,12 @@ class mode():
 
     def scan_mode(self): # scan mode # speed max == 0.1 #지금은 일단 직진.
         steer = 0
-        speed = 0.8
+        speed = 0.1
         return speed, steer
 
     def get_mode(self, can_pos): # state가 1 일때는 y좌표가 좌우 10cm씩 넘어갈 때만 조향
         if self.state == 1: # 스티어는 간단한 p제어와 같음
-            steer = can_pos[1]*2 if can_pos[1] > 0.1 else can_pos[1]*2 if can_pos[1] < -0.1 else 0.0
+            steer = can_pos[1]*2 if can_pos[1] > 0.01 else can_pos[1]*2 if can_pos[1] < -0.01 else 0.0
             speed = 0.05
         else: # state가 2가 들어오는 경우. 정지
             steer = speed = 0.0
@@ -35,11 +35,17 @@ def main():
     mission = mode()
     Turtle = bot([0.0, 0.0]) #로봇의 시작위치 offset -> 지도 볼 때 필요할 수도 있겠다 싶었음
     map = Map() #맵 모듈. 지도 정보와 can의 정보가 담겨있음
-
+    input("After enter, actuator power off ")
+    Turtle.actuator_power(False)
+    input("Set actuator and enter to power on ")
+    Turtle.actuator_power(True)
+    
     Turtle.f_set() #터틀봇 위치 초기화
 
+    input("Enter to start bot")
+
     while not rospy.is_shutdown():
-        speed, steer = mission.run(map.maching_can_pos, map.mission_state)
+        speed, steer = mission.run(map.matching_can_pos, map.mission_state)
         if mission.state == 2: map.matching_clear() # state가 2라면 can 관련 정보 초기화
         Turtle.move(speed, steer) # 로봇 이동
         rate.sleep()
