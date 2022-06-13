@@ -4,9 +4,13 @@
 import rospy
 import numpy as np
 import math
-from std_msgs.msg import Float64MultiArray
-from nav_msgs.srv import GetMap
+from tf.transformations import quaternion_from_euler
+
+from std_msgs.msg import Float64MultiArray, Header
+# from nav_msgs.srv import GetMap
+from nav_msgs.msg import OccupancyGrid
 from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
 from dbscan import *
 
 class Map():
@@ -14,11 +18,18 @@ class Map():
         # self.map_update()
         self.can_sub = rospy.Subscriber('/can_position_state', Float64MultiArray, self.can_callback, queue_size = 1) # (x, y, state)좌표
         self.laser_sub = rospy.Subscriber('/scan', LaserScan, self.scan_callback, queue_size = 1)
+        self.map_sub = rospy.Subscriber('/map', OccupancyGrid, self.map_callback, queue_size = 1)
+
+        self.goal_pose_pub = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size = 1)
 
         self.mission_state = 0
         self.matching_can_pos = [0.0, 0.0]
         self.sub_scan = list()
         self.DB_can_cluster = DBSCAN(0.05, 3)
+        self.goal_seq = 0
+        self.res = 0.05
+        self.offset = [30, 30]
+        # self.slam_map = np.zeros((1184,1984))
     
     # 미션이 수행 되고 난 후, can 위치 관련 정보 초기화
     def matching_clear(self):
@@ -40,12 +51,17 @@ class Map():
                 self.matching_can_pos = self.matching_point(self.matching_can_pos, 0.1) #한번 직전의 점과 매칭은 해봄 매칭 되면 state를 그대로 캔 추정모드(1)로 두고 trace된 캔 좌표로 주행
                 if self.matching_can_pos == [0.0,0.0]: # 매칭 안됬어
                     self.mission_state = 0 # 응 완전히 놓친거야~ state 자율주행모드(0) 으로 완전 변경
-        print(self.matching_can_pos)
+        # print(self.matching_can_pos)
 
     # 라이다 거리정보 sub
     def scan_callback(self, scan):
         self.sub_scan = list(scan.ranges)[:]
         self.get_obj()
+    
+    def map_callback(self, map):
+        ## self.map 정보 -> resolution == 0.05, offset = 30,30
+        self.slam_map = np.array(map.data).reshape(map.info.height, map.info.width)
+        # print(np.where(self.slam_map==100)) ## [600,599] - > 0,0
     
     # 라이다 거리&각도 정보를 로봇 xy좌표계로 변환
     def tf_tm(self, dis, i):
@@ -74,23 +90,50 @@ class Map():
         maching_pos = matching_min_pos if min(dist) < R else [0.0, 0.0]         
         return maching_pos
 
+    def pub_goal(self, goal, heading):
+        self.goal_seq += 1
+        q = quaternion_from_euler(0, 0, heading)
+        P = PoseStamped(header = Header(seq = self.goal_seq, stamp = rospy.Time.now(), frame_id = "map"),
+                        pose = Pose(position = Point(x = goal[0], y = goal[1]),
+                                    orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])))
+        self.goal_pose_pub.publish(P)
+
+    def is_wall(self, point):
+        p_ind = [int((point[1]+self.offset[0])/self.res), int((point[0]+self.offset[1])/self.res)]
+        cost = np.sum(self.slam_map[p_ind[0]-2:p_ind[0]+3, p_ind[1]-2:p_ind[1]+3])
+        cost = 1 if cost < 1 else 0
+        return cost
+
+    def pub_goal_point(self, point, heading):
+        if self.is_wall(point) == 1:
+            self.pub_goal(point, heading)
+        else:
+            
+
+
+
     # slam 코드에 서비스를 요청하여 지도 정보를 받아오는 서비스 함수
-    def map_update(self):
-        rospy.wait_for_service('/dynamic_map')
-        try:
-            call_map = rospy.ServiceProxy('/dynamic_map', GetMap)
-            resp_map = call_map()
-            self.raw_map = resp_map
-            print("Map ready")
-        except:
-            print("Map call failed")
+    # def map_update(self):
+    #     rospy.wait_for_service('/dynamic_map')
+    #     try:
+    #         call_map = rospy.ServiceProxy('/dynamic_map', GetMap)
+    #         resp_map = call_map()
+    #         self.raw_map = resp_map
+    #         print("Map ready")
+    #     except:
+    #         print("Map call failed")
 
 def main():
-    rospy.Rate(2)
+    rate = rospy.Rate(2)
     map = Map()
+    print("map test")
+    rospy.sleep(3)
     while not rospy.is_shutdown():
-        print("map test")
-        rospy.sleep()
+        # print(np.where(map.slam_map>100))
+        # map.pub_goal([0.0, 1.0], math.pi/2)
+        print(map.is_wall([0.25, 0]))
+        input("print map")
+        rate.sleep()
 
 if __name__ == '__main__':
     rospy.init_node('bot_map',anonymous=True)
