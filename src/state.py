@@ -130,7 +130,7 @@ def main():
         if mission.state == 2: 
             map.matching_clear() # state가 2라면 can 관련 정보 초기화
             Turtle.move(0.0, 0.0)
-            time.sleep(6)
+            time.sleep(8)
 
         ## 로봇 이동
         Turtle.move(speed, steer)
