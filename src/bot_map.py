@@ -37,6 +37,7 @@ class Map():
         self.path_point = [[2.5,1.0],[3.0, -2.0],[2.0,-0.5],[0.0, 0.0]]
         self.mini_obj_check = 1
         self.mini_obj = [[2000.0, 0.0]]
+        self.n_map = int(0.4/self.res)
         # self.slam_map = np.zeros((1184,1984))
     
     # 미션이 수행 되고 난 후, can 위치 관련 정보 초기화
@@ -73,6 +74,15 @@ class Map():
         self.slam_map = np.array(map.data).reshape(map.info.height, map.info.width)
         # print(np.where(self.slam_map==100)) ## [600,599] - > 0,0
 
+    # def make_map_copy(self):
+    #     self.goal_cost_map = np.zeros(self.slam_map.shape)
+
+    # def get_new_goal_point(self, pose):
+    #     p_ind = [int((pose[1]+self.offset[0])//self.res), int((pose[0]+self.offset[1])//self.res)] # 격자점에서 현재 몇by몇에 위치해 있는지 계산, 
+    #     a = np.sum(self.goal_cost_map[p_ind[0]])
+
+
+
     def find_mini_obj(self):
         if len(self.DB_can_cluster.cluster_avg) > 0: # 클러스터 된게 있으면 작동
             # for ic, c in enumerate(self.DB_can_cluster.cluster): # 각 클러스터에 대해 for문 반복
@@ -80,7 +90,7 @@ class Map():
             #     else: # 작은 물체에 대해서 작업
             if len(self.mini_obj) == 0: # 처음 받은 점이라면!
                 for ic, c in enumerate(self.DB_can_cluster.cluster):
-                    if len(c[0]) < 9 and np.linalg.norm(self.DB_can_cluster.cluster_avg[ic]) < 0.6:
+                    if len(c[0]) < 9 and np.linalg.norm(self.DB_can_cluster.cluster_avg[ic]) < 0.65:
                         self.mini_obj.append(self.DB_can_cluster.cluster_avg[ic]) #중심점 추가
                         self.mini_obj_check += 1 # 개수 증가
             else:# 처음받은 점은 아니라면
@@ -92,7 +102,7 @@ class Map():
                         self.mini_obj[io] = [2000.0, 0.0]
                 # 작은점이 있는데 기존의 매칭되던 점이 아니라면 새로 할당하자
                 for ic, c in enumerate(self.DB_can_cluster.cluster):
-                    if len(c[0]) < 9 and np.linalg.norm(self.DB_can_cluster.cluster_avg[ic]) < 0.6:
+                    if len(c[0]) < 9 and np.linalg.norm(self.DB_can_cluster.cluster_avg[ic]) < 0.65:
                         dist = list()
                         for o_avg in self.mini_obj: #지금 스캔된 클러스터에 대해 작은 클러스터라면 #매칭 해보고(매칭 추적은 이미 위에서 했으니 매칭 된 점은 거리가 0으로 매칭 됬을 것!)
                             dist.append(np.linalg.norm([o_avg[0]-self.DB_can_cluster.cluster_avg[ic][0], o_avg[1]-self.DB_can_cluster.cluster_avg[ic][1]]))
@@ -178,8 +188,8 @@ class Map():
         else: return 1
 
     def get_path_point(self, space_range): #space_range is 작업공간의 아래 좌우 x,y좌표. 좌표는 왼-우 좌표
-        x_interval = 5.5*0.45/5 #복도 폭/5
-        # x_interval = 6*0.45/5 #복도 폭/5
+        # x_interval = 5.5*0.45/5 #복도 폭/5
+        x_interval = 6*0.45/5 #복도 폭/5
         robot_wall_tolerance = 0.5 #(m)
         space_range[0] = [space_range[0][0], space_range[0][1] - robot_wall_tolerance]
         space_range[1] = [space_range[1][0], space_range[1][1] + robot_wall_tolerance]

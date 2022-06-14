@@ -66,7 +66,8 @@ def main():
     input("Enter to start bot")
     map_check_count = 0
     # map.get_path_point([[0.37+0.1,0.45*2.5],[0.37+0.1,-0.45*6.5]])
-    map.get_path_point([[-0.2,0.45*2.5],[-0.2,-0.45*2.5]])
+    map.get_path_point([[0.1, 0.45*2.5],[0.1, -0.45*6.5]])
+    # map.get_path_point([[-0.2,0.45*2.5],[-0.2,-0.45*2.5]])
 
     path_point_i = 0
     map.pub_goal_point(map.path_point[path_point_i], Turtle.heading)
@@ -106,14 +107,13 @@ def main():
         #     else: map_check_count += 1
         #     map_check_count = 0
 
-        # print(map_check_count, map.mini_obj_check)
+        print(map_check_count, map.mini_obj_check)
 
         ## 닫힌 공간 판단 -> 4초에 한번씩
         if map_check_count >= 20:
             if len(map.mini_obj) > map.mini_obj_check:
-                #map.mini_obj[map.mini_obj_check] 방향으로#헤딩 돌리기
-                # steer = map.mini_obj[map.mini_obj_check][1]*2 if map.mini_obj[map.mini_obj_check][1]> 0.1 else map.mini_obj[map.mini_obj_check][1]*2 if map.mini_obj[map.mini_obj_check][1] < -0.1 else 0.0
-                steer = 0.2 if map.mini_obj[map.mini_obj_check][1] > 0.1 else -0.2 if map.mini_obj[map.mini_obj_check][1] < -0.1 else 0.0
+                #map.mini_obj[map.mini_obj_check] 방향으로 헤딩 돌리기
+                steer = 0.5 if map.mini_obj[map.mini_obj_check][1] > 0.1 else -0.5 if map.mini_obj[map.mini_obj_check][1] < -0.1 else 0.0
                 speed = 0.0
                 Turtle.move(speed, steer)
                 if steer == 0.0:
@@ -121,7 +121,7 @@ def main():
                     map.mini_obj_check += 1
                 rate.sleep()
                 continue
-        map_check_count += 1
+        else: map_check_count += 1
 
         ## 미션 스테이트에 따라 speed와 steer를 가져오는 함수
         speed, steer = mission.run(map.matching_can_pos, map.mission_state, Turtle.pos, Turtle.heading)
