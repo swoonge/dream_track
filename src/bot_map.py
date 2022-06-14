@@ -28,13 +28,15 @@ class Map():
         self.mission_state = 0
         self.matching_can_pos = [0.0, 0.0]
         self.sub_scan = list()
-        self.DB_can_cluster = DBSCAN(0.05, 3)
-        self.DB_wall_cluster = DBSCAN(2, 10)
+        self.DB_can_cluster = DBSCAN(0.04, 3)
+        # self.DB_wall_cluster = DBSCAN(2, 10)
         self.space_mean = [[0,0],[10,10]]
         self.goal_seq = 0
         self.res = 0.05
         self.offset = [50, 50]
         self.path_point = [[2.5,1.0],[3.0, -2.0],[2.0,-0.5],[0.0, 0.0]]
+        self.mini_obj_check = 1
+        self.mini_obj = [[2000.0, 0.0]]
         # self.slam_map = np.zeros((1184,1984))
     
     # 미션이 수행 되고 난 후, can 위치 관련 정보 초기화
@@ -49,13 +51,14 @@ class Map():
         if can.data[2] == 2 or self.mission_state == 2: self.mission_state = 2 # state가 2(로봇팔 작동 시작)가 들어오면 무조건 상태 2로 변경 and 2로 유지
         if can.data[2] == 1: #2였다면 위에 if문에서 미리 바꼈으니 1인경우 -> 그래도 한번 매칭 해봄 -> 매칭 되면 라이다 좌표로 움직임 / 매칭 실패시 그냥 리얼센스 값 사용 
             self.matching_can_pos = self.matching_point(sub_can_pos, 0.1)
-            if self.matching_can_pos == [0.0,0.0]: 
+            if self.matching_can_pos == [1000.0, 1000.0]:
                 self.matching_can_pos = sub_can_pos
             self.mission_state = 1 # -> 매칭 되던 안되던 state는 1
         elif can.data[2] == 0: # 혹시나 지금 카메라에서는 인식 못했는데
             if self.mission_state == 1: # 직전에는 can의 위치정보가 있었다면
                 self.matching_can_pos = self.matching_point(self.matching_can_pos, 0.1) #한번 직전의 점과 매칭은 해봄 매칭 되면 state를 그대로 캔 추정모드(1)로 두고 trace된 캔 좌표로 주행
-                if self.matching_can_pos == [0.0,0.0]: # 매칭 안됬어
+                if self.matching_can_pos == [1000.0, 1000.0]: # 매칭 안됬어
+                    self.matching_can_pos == [0.0, 0.0]
                     self.mission_state = 0 # 응 완전히 놓친거야~ state 자율주행모드(0) 으로 완전 변경
         # print(self.matching_can_pos)
 
@@ -63,12 +66,43 @@ class Map():
     def scan_callback(self, scan):
         self.sub_scan = list(scan.ranges)[:]
         self.get_obj()
+        self.find_mini_obj()
     
     def map_callback(self, map):
         ## self.map 정보 -> resolution == 0.05, offset = 30,30 // 행이 y, 열이 x값.
         self.slam_map = np.array(map.data).reshape(map.info.height, map.info.width)
         # print(np.where(self.slam_map==100)) ## [600,599] - > 0,0
-    
+
+    def find_mini_obj(self):
+        if len(self.DB_can_cluster.cluster_avg) > 0: # 클러스터 된게 있으면 작동
+            # for ic, c in enumerate(self.DB_can_cluster.cluster): # 각 클러스터에 대해 for문 반복
+            #     if len(c[0]) > 9:pass # 큰 물체 제외
+            #     else: # 작은 물체에 대해서 작업
+            if len(self.mini_obj) == 0: # 처음 받은 점이라면!
+                for ic, c in enumerate(self.DB_can_cluster.cluster):
+                    if len(c[0]) < 9 and np.linalg.norm(self.DB_can_cluster.cluster_avg[ic]) < 0.6:
+                        self.mini_obj.append(self.DB_can_cluster.cluster_avg[ic]) #중심점 추가
+                        self.mini_obj_check += 1 # 개수 증가
+            else:# 처음받은 점은 아니라면
+                for io, obj in enumerate(self.mini_obj): #일단 매칭 해본다.
+                    obj_near = self.matching_point(obj, 0.1) # 추적해왔던 점과 지금 환경 점에 대해 매칭
+                    if obj_near != [1000.0, 1000.0]: # 매칭 되면 원래 업데이트
+                        self.mini_obj[io] = obj_near
+                    elif obj_near == [1000.0, 1000.0]: #매칭 안되면 날리기o
+                        self.mini_obj[io] = [2000.0, 0.0]
+                # 작은점이 있는데 기존의 매칭되던 점이 아니라면 새로 할당하자
+                for ic, c in enumerate(self.DB_can_cluster.cluster):
+                    if len(c[0]) < 9 and np.linalg.norm(self.DB_can_cluster.cluster_avg[ic]) < 0.6:
+                        dist = list()
+                        for o_avg in self.mini_obj: #지금 스캔된 클러스터에 대해 작은 클러스터라면 #매칭 해보고(매칭 추적은 이미 위에서 했으니 매칭 된 점은 거리가 0으로 매칭 됬을 것!)
+                            dist.append(np.linalg.norm([o_avg[0]-self.DB_can_cluster.cluster_avg[ic][0], o_avg[1]-self.DB_can_cluster.cluster_avg[ic][1]]))
+                        matching_min_pos = self.mini_obj[dist.index(min(dist))]
+                        if min(dist) < 0.1: pass #매칭 됬으면 이미 위에서 업데이트 했을 것! 아마 거리가 0으로 나왔을 것
+                        else: self.mini_obj.append(self.DB_can_cluster.cluster_avg[ic]) #안됬으면 점 추가
+        elif len(self.DB_can_cluster.cluster_avg) == 0:
+            self.mini_obj[:][:] = [2000.0, 0.0]
+        
+
     # 라이다 거리&각도 정보를 로봇 xy좌표계로 변환
     def tf_tm(self, dis, i):
         obs_y = dis*math.sin(np.deg2rad(float(i)))
@@ -79,7 +113,7 @@ class Map():
     def tf_scan_to_xy(self):
         obs = list()
         for i, dis in enumerate(self.sub_scan):
-            if 0.2 < dis and dis < 1.0: obs.append(self.tf_tm(dis, i))
+            if 0.2 < dis and dis < 2.0: obs.append(self.tf_tm(dis, i))
         if len(obs) < 2: obs = [[0,0]]
         return obs
 
@@ -93,7 +127,7 @@ class Map():
         for c_avg in self.DB_can_cluster.cluster_avg:
             dist.append(np.linalg.norm([c_avg[0]-point[0], c_avg[1]-point[1]]))
         matching_min_pos = self.DB_can_cluster.cluster_avg[dist.index(min(dist))]
-        maching_pos = matching_min_pos if min(dist) < R else [0.0, 0.0]         
+        maching_pos = matching_min_pos if min(dist) < R else [1000.0, 1000.0]
         return maching_pos
 
     def pub_goal(self, goal, heading):
@@ -114,6 +148,7 @@ class Map():
         if self.is_wall(point) == 1:
             self.pub_goal(point, heading)
         else: #근처에 벽이 있어 그러면 조금 이동시켜줘서 펍해줘
+            pa = 0
             while(pa == 0):
                 s_point = []
                 for x in [-0.1, 0.1]:
@@ -143,8 +178,9 @@ class Map():
         else: return 1
 
     def get_path_point(self, space_range): #space_range is 작업공간의 아래 좌우 x,y좌표. 좌표는 왼-우 좌표
-        x_interval = 2.7/5 #복도 폭/5
-        robot_wall_tolerance = 0.4 #(m)
+        x_interval = 5.5*0.45/5 #복도 폭/5
+        # x_interval = 6*0.45/5 #복도 폭/5
+        robot_wall_tolerance = 0.5 #(m)
         space_range[0] = [space_range[0][0], space_range[0][1] - robot_wall_tolerance]
         space_range[1] = [space_range[1][0], space_range[1][1] + robot_wall_tolerance]
         self.path_point = [[space_range[0][0]+4*x_interval, space_range[0][1]],[space_range[1][0]+4*x_interval, space_range[1][1]],
@@ -176,29 +212,25 @@ class Map():
             )
 
         self.mean_pub.publish(rviz_mean)
-    
-    # slam 코드에 서비스를 요청하여 지도 정보를 받아오는 서비스 함수
-    # def map_update(self):
-    #     rospy.wait_for_service('/dynamic_map')
-    #     try:
-    #         call_map = rospy.ServiceProxy('/dynamic_map', GetMap)
-    #         resp_map = call_map()
-    #         self.raw_map = resp_map
-    #         print("Map ready")
-    #     except:
-    #         print("Map call failed")
 
 def main():
     rate = rospy.Rate(2)
     map = Map()
     print("map test")
-    rospy.sleep(3)
+    rospy.sleep(1)
     while not rospy.is_shutdown():
+        # print(map.DB_can_cluster.cluster[0])
         # print(np.where(map.slam_map>100))
         # map.pub_goal([0.0, 1.0], math.pi/2)
         # print(map.is_wall([0.25, 0]))
         # map.get_space_senter(0)
-        print(map.check_space(0))
+        # print(map.check_space(0))
+        print(map.mini_obj)
+        # for c in map.DB_can_cluster.cluster:
+        #     if len(c[0]) < 8:
+        #         print(c[0])
+        # map.DB_can_cluster.plot()
+
         # input("print map")
         rate.sleep()
 

@@ -51,11 +51,12 @@ class bot:
         for t in tf.transforms:
             if t.child_frame_id == "base_footprint":
                 self.pos = [t.transform.translation.x, t.transform.translation.y]
+                orientation_list = [t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w]
+                (roll, pitch, yaw) = euler_from_quaternion (orientation_list)
+                self.heading = yaw # heading을 rad으로 표현 / x축 기준 반시계방향 -pi ~ pi
             else: pass
         # ori = [fb.feedback.base_position.pose.orientation.x  + self.offset[0], pos.transforms[0].transform.translation.y + self.offset[1]]
-        orientation_list = [t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w]
-        (roll, pitch, yaw) = euler_from_quaternion (orientation_list)
-        self.heading = yaw # heading을 rad으로 표현 / x축 기준 반시계방향 -pi ~ pi
+        
     ##################################
 
     def f_set(self):
