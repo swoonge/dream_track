@@ -16,7 +16,7 @@ from open_manipulator_msgs.srv import SetActuatorState
 class bot:
     def __init__(self, offset):
         # 구독자 선언
-        self.current_pose = rospy.Subscriber('/move_base/feedback', MoveBaseActionFeedback, self.pose_callback, queue_size = 1) # (x, y)좌표
+        self.current_pose = rospy.Subscriber('/tf', tfMessage, self.pose_callback, queue_size = 1) # (x, y)좌표
         # self.laser_sub = rospy.Subscriber('/scan', LaserScan, self.scan_callback, queue_size = 1)
 
         self.motor_power_pub = rospy.Publisher('/motor_power', Bool, queue_size = 1)
@@ -47,10 +47,13 @@ class bot:
     # def scan_callback(self, scan):
     #     self.scan_raw = scan.ranges
 
-    def pose_callback(self, fb):
-        self.pose = [fb.feedback.base_position.pose.position.x, fb.feedback.base_position.pose.position.y]
+    def pose_callback(self, tf):
+        for t in tf.transforms:
+            if t.child_frame_id == "base_footprint":
+                self.pos = [t.transform.translation.x, t.transform.translation.y]
+            else: pass
         # ori = [fb.feedback.base_position.pose.orientation.x  + self.offset[0], pos.transforms[0].transform.translation.y + self.offset[1]]
-        orientation_list = [fb.feedback.base_position.pose.orientation.x, fb.feedback.base_position.pose.orientation.y, fb.feedback.base_position.pose.orientation.z, fb.feedback.base_position.pose.orientation.w]
+        orientation_list = [t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w]
         (roll, pitch, yaw) = euler_from_quaternion (orientation_list)
         self.heading = yaw # heading을 rad으로 표현 / x축 기준 반시계방향 -pi ~ pi
     ##################################

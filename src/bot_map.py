@@ -5,12 +5,14 @@ import rospy
 import numpy as np
 import math
 from tf.transformations import quaternion_from_euler
+from scipy.spatial import distance
 
-from std_msgs.msg import Float64MultiArray, Header
-# from nav_msgs.srv import GetMap
+from visualization_msgs.msg import Marker
+from std_msgs.msg import Header, Float64, ColorRGBA, Float64MultiArray
+from nav_msgs.srv import GetMap
 from nav_msgs.msg import OccupancyGrid
 from sensor_msgs.msg import LaserScan
-from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
+from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion, Vector3
 from dbscan import *
 
 class Map():
@@ -19,6 +21,7 @@ class Map():
         self.can_sub = rospy.Subscriber('/can_position_state', Float64MultiArray, self.can_callback, queue_size = 1) # (x, y, state)좌표
         self.laser_sub = rospy.Subscriber('/scan', LaserScan, self.scan_callback, queue_size = 1)
         self.map_sub = rospy.Subscriber('/map', OccupancyGrid, self.map_callback, queue_size = 1)
+        self.mean_pub = rospy.Publisher('/mean_rviz', Marker, queue_size=3)
 
         self.goal_pose_pub = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size = 1)
 
@@ -26,9 +29,12 @@ class Map():
         self.matching_can_pos = [0.0, 0.0]
         self.sub_scan = list()
         self.DB_can_cluster = DBSCAN(0.05, 3)
+        self.DB_wall_cluster = DBSCAN(2, 10)
+        self.space_mean = [[0,0],[10,10]]
         self.goal_seq = 0
         self.res = 0.05
-        self.offset = [30, 30]
+        self.offset = [50, 50]
+        self.path_point = [[2.5,1.0],[3.0, -2.0],[2.0,-0.5],[0.0, 0.0]]
         # self.slam_map = np.zeros((1184,1984))
     
     # 미션이 수행 되고 난 후, can 위치 관련 정보 초기화
@@ -59,7 +65,7 @@ class Map():
         self.get_obj()
     
     def map_callback(self, map):
-        ## self.map 정보 -> resolution == 0.05, offset = 30,30
+        ## self.map 정보 -> resolution == 0.05, offset = 30,30 // 행이 y, 열이 x값.
         self.slam_map = np.array(map.data).reshape(map.info.height, map.info.width)
         # print(np.where(self.slam_map==100)) ## [600,599] - > 0,0
     
@@ -99,19 +105,78 @@ class Map():
         self.goal_pose_pub.publish(P)
 
     def is_wall(self, point):
-        p_ind = [int((point[1]+self.offset[0])/self.res), int((point[0]+self.offset[1])/self.res)]
+        p_ind = [int((point[1]+self.offset[0])//self.res), int((point[0]+self.offset[1])//self.res)]
         cost = np.sum(self.slam_map[p_ind[0]-2:p_ind[0]+3, p_ind[1]-2:p_ind[1]+3])
         cost = 1 if cost < 1 else 0
-        return cost
+        return cost #1이면 갈 수 있고, 0이면 못감
 
     def pub_goal_point(self, point, heading):
         if self.is_wall(point) == 1:
             self.pub_goal(point, heading)
-        else:
-            
+        else: #근처에 벽이 있어 그러면 조금 이동시켜줘서 펍해줘
+            while(pa == 0):
+                s_point = []
+                for x in [-0.1, 0.1]:
+                    for y in [-0.1, 0.1]:
+                        if self.is_wall([point[0]+x, point[1]+y]) == 1:
+                            s_point.append([point[0]+x, point[1]+y])
+                if len(s_point[0]) == 0:
+                    pa = 0
+                else:
+                    pa = 1
+                    shift_point = s_point[0]
+            self.pub_goal(shift_point, heading)
 
+    def get_space_senter(self, c): # 0이면 빈공간 계산
+        scaned_space = np.where(self.slam_map == 0) if c == 0 else np.where(self.slam_map > 1)
+        scaned_space_mean = np.mean(np.stack([scaned_space[0],scaned_space[1]],1), axis=0)*self.res-self.offset[0]
+        self.space_mean[0] = self.space_mean[1]
+        self.space_mean[1] = [scaned_space_mean[1], scaned_space_mean[0]]
+        # print(scaned_space_mean)
+        self.mean_viz([(scaned_space_mean[1]),(scaned_space_mean[0])])
 
+    def check_space(self, c): #움직였으면 1, 안움직였으면 0 반환
+        self.get_space_senter(c)
+        # print(self.space_mean)
+        if distance.euclidean(self.space_mean[0],self.space_mean[1]) < 0.00001:
+            return 0
+        else: return 1
 
+    def get_path_point(self, space_range): #space_range is 작업공간의 아래 좌우 x,y좌표. 좌표는 왼-우 좌표
+        x_interval = 2.7/5 #복도 폭/5
+        robot_wall_tolerance = 0.4 #(m)
+        space_range[0] = [space_range[0][0], space_range[0][1] - robot_wall_tolerance]
+        space_range[1] = [space_range[1][0], space_range[1][1] + robot_wall_tolerance]
+        self.path_point = [[space_range[0][0]+4*x_interval, space_range[0][1]],[space_range[1][0]+4*x_interval, space_range[1][1]],
+                            [space_range[1][0]+3*x_interval, space_range[1][1]],[space_range[0][0]+3*x_interval, space_range[0][1]],
+                            [space_range[0][0]+2*x_interval, space_range[0][1]],[space_range[1][0]+2*x_interval, space_range[1][1]],
+                            [space_range[1][0]+x_interval, space_range[1][1]],[space_range[0][0]+x_interval, space_range[0][1]],[0.0, 0.0]]
+        
+    def mean_viz(self, pos):
+        pose = Pose()
+        pose.orientation.x=0.0
+        pose.orientation.y=0.0
+        pose.orientation.z=0.0
+        pose.orientation.w=1.0
+
+        pose.position.x=pos[0]
+        pose.position.y=pos[1]
+        pose.position.z=0
+
+        rviz_mean=Marker(
+            header=Header(frame_id='map',stamp=rospy.get_rostime()),
+            ns="mean",
+            id=100,
+            type=Marker.CUBE,
+            lifetime=rospy.Duration(),
+            action=Marker.ADD,
+            pose=pose,
+            scale=Vector3(x=0.2,y=0.2,z=0.2),
+            color=ColorRGBA(r=1.0,g=0.7,b=0.0,a=1.0)
+            )
+
+        self.mean_pub.publish(rviz_mean)
+    
     # slam 코드에 서비스를 요청하여 지도 정보를 받아오는 서비스 함수
     # def map_update(self):
     #     rospy.wait_for_service('/dynamic_map')
@@ -131,8 +196,10 @@ def main():
     while not rospy.is_shutdown():
         # print(np.where(map.slam_map>100))
         # map.pub_goal([0.0, 1.0], math.pi/2)
-        print(map.is_wall([0.25, 0]))
-        input("print map")
+        # print(map.is_wall([0.25, 0]))
+        # map.get_space_senter(0)
+        print(map.check_space(0))
+        # input("print map")
         rate.sleep()
 
 if __name__ == '__main__':
