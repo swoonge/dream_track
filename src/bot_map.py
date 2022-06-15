@@ -82,7 +82,6 @@ class Map():
     #     a = np.sum(self.goal_cost_map[p_ind[0]])
 
 
-
     def find_mini_obj(self):
         if len(self.DB_can_cluster.cluster_avg) > 0: # 클러스터 된게 있으면 작동
             # for ic, c in enumerate(self.DB_can_cluster.cluster): # 각 클러스터에 대해 for문 반복
@@ -90,24 +89,24 @@ class Map():
             #     else: # 작은 물체에 대해서 작업
             if len(self.mini_obj) == 0: # 처음 받은 점이라면!
                 for ic, c in enumerate(self.DB_can_cluster.cluster):
-                    if len(c[0]) < 9 and np.linalg.norm(self.DB_can_cluster.cluster_avg[ic]) < 0.65:
+                    if len(c[0]) < 9 and np.linalg.norm(self.DB_can_cluster.cluster_avg[ic]) < 0.5:
                         self.mini_obj.append(self.DB_can_cluster.cluster_avg[ic]) #중심점 추가
                         self.mini_obj_check += 1 # 개수 증가
             else:# 처음받은 점은 아니라면
                 for io, obj in enumerate(self.mini_obj): #일단 매칭 해본다.
-                    obj_near = self.matching_point(obj, 0.1) # 추적해왔던 점과 지금 환경 점에 대해 매칭
+                    obj_near = self.matching_point(obj, 0.2) # 추적해왔던 점과 지금 환경 점에 대해 매칭
                     if obj_near != [1000.0, 1000.0]: # 매칭 되면 원래 업데이트
                         self.mini_obj[io] = obj_near
-                    elif obj_near == [1000.0, 1000.0]: #매칭 안되면 날리기o
+                    elif obj_near == [1000.0, 1000.0]: # or np.linalg.norm(self.DB_can_cluster.cluster_avg[ic]) >= 0.65: #매칭 안되면 날리기
                         self.mini_obj[io] = [2000.0, 0.0]
                 # 작은점이 있는데 기존의 매칭되던 점이 아니라면 새로 할당하자
                 for ic, c in enumerate(self.DB_can_cluster.cluster):
-                    if len(c[0]) < 9 and np.linalg.norm(self.DB_can_cluster.cluster_avg[ic]) < 0.65:
+                    if len(c[0]) < 9 and np.linalg.norm(self.DB_can_cluster.cluster_avg[ic]) < 0.5:
                         dist = list()
                         for o_avg in self.mini_obj: #지금 스캔된 클러스터에 대해 작은 클러스터라면 #매칭 해보고(매칭 추적은 이미 위에서 했으니 매칭 된 점은 거리가 0으로 매칭 됬을 것!)
                             dist.append(np.linalg.norm([o_avg[0]-self.DB_can_cluster.cluster_avg[ic][0], o_avg[1]-self.DB_can_cluster.cluster_avg[ic][1]]))
                         matching_min_pos = self.mini_obj[dist.index(min(dist))]
-                        if min(dist) < 0.1: pass #매칭 됬으면 이미 위에서 업데이트 했을 것! 아마 거리가 0으로 나왔을 것
+                        if min(dist) < 0.2: pass #매칭 됬으면 이미 위에서 업데이트 했을 것! 아마 거리가 0으로 나왔을 것
                         else: self.mini_obj.append(self.DB_can_cluster.cluster_avg[ic]) #안됬으면 점 추가
         elif len(self.DB_can_cluster.cluster_avg) == 0:
             self.mini_obj[:][:] = [2000.0, 0.0]
@@ -123,7 +122,7 @@ class Map():
     def tf_scan_to_xy(self):
         obs = list()
         for i, dis in enumerate(self.sub_scan):
-            if 0.2 < dis and dis < 2.0: obs.append(self.tf_tm(dis, i))
+            if 0.35 < dis and dis < 2.0: obs.append(self.tf_tm(dis, i))
         if len(obs) < 2: obs = [[0,0]]
         return obs
 
@@ -188,12 +187,13 @@ class Map():
         else: return 1
 
     def get_path_point(self, space_range): #space_range is 작업공간의 아래 좌우 x,y좌표. 좌표는 왼-우 좌표
-        # x_interval = 5.5*0.45/5 #복도 폭/5
-        x_interval = 6*0.45/5 #복도 폭/5
+        x_interval = 2.9/5 #복도 폭/5
+        # x_interval = 6*0.45/5 #복도 폭/5
         robot_wall_tolerance = 0.5 #(m)
         space_range[0] = [space_range[0][0], space_range[0][1] - robot_wall_tolerance]
         space_range[1] = [space_range[1][0], space_range[1][1] + robot_wall_tolerance]
-        self.path_point = [[space_range[0][0]+4*x_interval, space_range[0][1]],[space_range[1][0]+4*x_interval, space_range[1][1]],
+        self.path_point = [[space_range[0][0]+2*x_interval, space_range[0][1]],
+                            [space_range[0][0]+4*x_interval, space_range[0][1]],[space_range[1][0]+4*x_interval, space_range[1][1]],
                             [space_range[1][0]+3*x_interval, space_range[1][1]],[space_range[0][0]+3*x_interval, space_range[0][1]],
                             [space_range[0][0]+2*x_interval, space_range[0][1]],[space_range[1][0]+2*x_interval, space_range[1][1]],
                             [space_range[1][0]+x_interval, space_range[1][1]],[space_range[0][0]+x_interval, space_range[0][1]],[0.0, 0.0]]

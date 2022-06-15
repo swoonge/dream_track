@@ -2,6 +2,7 @@
 # -- coding: utf-8 --
 import rospy
 import time
+import numpy as np
 
 from move_base_msgs.msg import MoveBaseActionResult
 
@@ -32,7 +33,7 @@ class mode():
 
     def get_mode(self, can_pos): # state가 1 일때는 y좌표가 좌우 10cm씩 넘어갈 때만 조향
         if self.state == 1: # 스티어는 간단한 p제어와 같음
-            if np.linalg.norm(can_pos) < 0.7:
+            if np.linalg.norm(can_pos) < 0.9:
                 steer = can_pos[1]*2 if can_pos[1] > 0.01 else can_pos[1]*2 if can_pos[1] < -0.01 else 0.0
                 speed = 0.05
             else:
@@ -66,8 +67,8 @@ def main():
     input("Enter to start bot")
     map_check_count = 0
     # map.get_path_point([[0.37+0.1,0.45*2.5],[0.37+0.1,-0.45*6.5]])
-    map.get_path_point([[0.1, 0.45*2.5],[0.1, -0.45*6.5]])
-    # map.get_path_point([[-0.2,0.45*2.5],[-0.2,-0.45*2.5]])
+    map.get_path_point([[0.1, 1.5],[0.1, -2.7]])
+    # map.get_path_point([[-0.0, 1.1],[-0.0,-1.1]])
 
     path_point_i = 0
     map.pub_goal_point(map.path_point[path_point_i], Turtle.heading)
@@ -107,9 +108,10 @@ def main():
         #     else: map_check_count += 1
         #     map_check_count = 0
 
-        print(map_check_count, map.mini_obj_check)
+        # print(map_check_count, map.mini_obj_check)
+        print(mission.state, len(map.mini_obj))
 
-        ## 닫힌 공간 판단 -> 4초에 한번씩
+        # 4초에 한번씩
         if map_check_count >= 20:
             if len(map.mini_obj) > map.mini_obj_check:
                 #map.mini_obj[map.mini_obj_check] 방향으로 헤딩 돌리기
@@ -130,7 +132,7 @@ def main():
         if mission.state == 2: 
             map.matching_clear() # state가 2라면 can 관련 정보 초기화
             Turtle.move(0.0, 0.0)
-            time.sleep(8)
+            time.sleep(6)
 
         ## 로봇 이동
         Turtle.move(speed, steer)
