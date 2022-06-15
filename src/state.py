@@ -13,7 +13,7 @@ from Pp import *
 class mode():
     def __init__(self):
         self.motor_sub = rospy.Subscriber('/cmd_vel_navi', Twist, self.navi_cmd_callback, queue_size = 1) # 모터
-        self.motor_sub = rospy.Subscriber('/move_base/result', MoveBaseActionResult, self.result_callback, queue_size = 1) # 모터
+        self.result_sub = rospy.Subscriber('/move_base/result', MoveBaseActionResult, self.result_callback, queue_size = 1) # 모터
         self.state = 0 # 0 is scan_mode, 1 is get_mode
         self.result_state = 0
         self.navi_mt = [0.0,0.0] #speed, steer
