@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 # -- coding: utf-8 --
-from types import coroutine
 import numpy as np
 from matplotlib import pyplot as plt
-import copy
 
 class DBSCAN():
     def __init__(self, epsilon, minpts):
@@ -89,22 +87,6 @@ class DBSCAN():
         plt.ylabel('Y', fontsize=14)
         plt.show()
 
-    def plot_sign(self, xy):
-        fig,ax = plt.subplots()
-        
-        for idx,group in enumerate(xy):
-            ax.plot(group[0][:,0],
-                    group[0][:,1],
-                    marker='o',
-                    linestyle='',
-                    label='sign {}'.format(idx))
-
-        ax.legend(fontsize=10, loc='upper left')
-        plt.title('Scatter Plot of Clustering result', fontsize=15)
-        plt.xlabel('X', fontsize=14)
-        plt.ylabel('Y', fontsize=14)
-        plt.show()
-
     def data_update(self, x):
         try:
             self.n = len(x)
@@ -138,5 +120,3 @@ class DBSCAN():
         self.clustering()
         self.sort()
         self.get_cluster_avg()
-
-        # return len(self.cluster)
